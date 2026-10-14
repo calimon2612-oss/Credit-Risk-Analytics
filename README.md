@@ -2,7 +2,9 @@
 
 End-to-end data analytics project focused on identifying behavioral and financial indicators associated with next-month credit card default.
 
-The project combines **SQL Server, Python, and Power BI** to validate the data, engineer risk features, analyze customer behavior, and communicate the most relevant findings through an interactive dashboard.
+The project combines **SQL Server, Python, and Power BI** to validate the data, engineer reusable risk features, analyze customer behavior, and communicate the most relevant findings through an interactive dashboard.
+
+![Credit Risk Dashboard](./images/dashboard_overview.png)
 
 ---
 
@@ -23,8 +25,10 @@ The project does **not** treat these indicators as deterministic predictors. The
 
 ## Dataset
 
+This project uses the **Default of Credit Card Clients** dataset from the UCI Machine Learning Repository.
+
 - **30,000 customers**
-- **25 original variables**
+- **25 original variables in the project source file, including the target**
 - Target variable: `DEFAULT_NEXT_MONTH`
   - `1` = customer defaulted in the next month
   - `0` = customer did not default
@@ -38,34 +42,45 @@ Main groups of variables include:
 - Monthly payment amounts
 - Default status
 
+**Source:** UCI Machine Learning Repository — Default of Credit Card Clients  
+https://archive.ics.uci.edu/dataset/350/default%2Bof%2Bcredit%2Bcard%2Bclients
+
+**Dataset citation:** Yeh, I. (2009). *Default of Credit Card Clients* [Dataset]. UCI Machine Learning Repository.  
+DOI: https://doi.org/10.24432/C55S3H
+
+**License:** Creative Commons Attribution 4.0 International (CC BY 4.0)
+
 ---
 
 ## Tools Used
 
-- **SQL Server**
-  - Data validation
-  - Feature engineering
-  - CTEs
-  - CASE expressions
-  - Aggregations
-  - Views
+### SQL Server
 
-- **Python**
-  - `pandas`
-  - `numpy`
-  - `pyodbc`
-  - `matplotlib`
-  - Exploratory data analysis
-  - Extreme-value review
-  - Behavioral segmentation
+- Data validation
+- Feature engineering
+- CTEs
+- `CASE` expressions
+- Aggregations
+- Views
 
-- **Power BI**
-  - DAX measures
-  - Calculated columns
-  - KPI cards
-  - Interactive slicers
-  - Gauge visualization
-  - Executive dashboard
+### Python
+
+- `pandas`
+- `numpy`
+- `pyodbc`
+- `matplotlib`
+- Exploratory data analysis
+- Extreme-value review
+- Behavioral segmentation
+
+### Power BI
+
+- DAX measures
+- Calculated columns
+- KPI cards
+- Interactive slicers
+- Gauge visualization
+- Executive dashboard
 
 ---
 
@@ -96,6 +111,7 @@ SQL was used to validate the dataset and build reusable analytical features.
 ### Main SQL Features
 
 #### `DelayedMonths`
+
 Counts the number of observed periods with a confirmed payment delay.
 
 ```sql
@@ -108,6 +124,7 @@ CASE WHEN PAY_6 >= 1 THEN 1 ELSE 0 END
 ```
 
 #### `MaxDelay`
+
 Represents the maximum confirmed delay level observed across the payment history.
 
 #### `CreditUtilization`
@@ -118,11 +135,15 @@ BILL_AMT1 / LIMIT_BAL × 100
 
 #### `PaymentRatio`
 
+The SQL column `PaymentRatio` is calculated as:
+
 ```text
 PAY_AMT1 / BILL_AMT1 × 100
 ```
 
-`PaymentRatio` is only calculated when `BILL_AMT1 > 0`.
+It is only calculated when `BILL_AMT1 > 0`.
+
+In this project, the metric is interpreted as a **payment-to-bill proxy** that compares the payment amount recorded for the period with the billed balance used in the analysis. It should **not** be interpreted as the exact percentage of a specific bill that was repaid because the dataset documentation does not explicitly map each payment amount to an individual bill statement.
 
 #### `RiskGroup`
 
@@ -140,6 +161,8 @@ dbo.vw_CustomerRiskFeatures
 
 was used as the reusable analytical layer for both Python and Power BI.
 
+**SQL script:** [CreditRisk_SQL_Clean.sql](./SQL/CreditRisk_SQL_Clean.sql)
+
 ---
 
 ## Python Exploratory Analysis
@@ -150,7 +173,9 @@ Python was used to validate engineered features, inspect extreme values, and exp
 
 Extreme values in `PaymentRatio` and `CreditUtilization` were reviewed before segmentation.
 
-They were retained because they were mathematically consistent with the underlying balances and payments and could represent valid customer behavior.
+They were retained when they were mathematically consistent with the underlying values rather than being automatically removed as errors. Because `PaymentRatio` is used as a payment-to-bill proxy, extreme values are interpreted cautiously and are not treated as exact repayment percentages.
+
+**Notebook:** [Credit_Risk_Analysis.ipynb](./Python/Credit_Risk_Analysis.ipynb)
 
 ---
 
@@ -162,8 +187,6 @@ They were retained because they were mathematically consistent with the underlyi
 - Default customers: **6,636**
 - Overall default rate: **22.12%**
 
----
-
 ### 2. Delay Frequency
 
 Default risk increased substantially as customers accumulated more delayed months.
@@ -173,16 +196,12 @@ Default risk increased substantially as customers accumulated more delayed month
 
 Repeated payment delays were one of the strongest behavioral risk indicators observed in the analysis.
 
----
-
 ### 3. Recent Payment Delay
 
 Customers with a recent confirmed delay showed a much higher default rate.
 
 - No recent confirmed delay: **13.83%**
 - Recent confirmed delay: **50.29%**
-
----
 
 ### 4. Combined Recency and Frequency
 
@@ -196,8 +215,6 @@ Combining recent delay status with historical delay frequency created clearer ri
 | Recent_High | 57.88% |
 
 The `Recent_High` segment showed the highest default rate.
-
----
 
 ### 5. Credit Utilization
 
@@ -214,11 +231,9 @@ Default risk generally increased as credit utilization rose.
 
 The relationship was not perfectly linear, but customers above 100% utilization showed the highest rate.
 
----
+### 6. Payment-to-Bill Proxy
 
-### 6. Payment Ratio
-
-Customers who paid a larger proportion of their billed balance generally showed lower default risk.
+The `PaymentRatio` feature showed an association between payment intensity and default risk, but it is interpreted as a proxy rather than an exact bill-repayment percentage.
 
 | Payment Ratio Band | Default Rate |
 |---|---:|
@@ -230,7 +245,7 @@ Customers who paid a larger proportion of their billed balance generally showed 
 | 50-99% | 13.58% |
 | 100%+ | 15.50% |
 
-The `0%` payment group showed the highest default rate.
+The `0%` group showed the highest default rate within this segmentation.
 
 ---
 
@@ -264,15 +279,51 @@ The Power BI dashboard was designed as a single-page executive overview.
 
 The dashboard allows users to compare filtered customer segments against the overall portfolio default rate of **22.12%**.
 
+**Power BI file:** [Credit Risk PBI.pbix](./PowerBI/Credit%20Risk%20PBI.pbix)
+
 ---
 
 ## Key Risk Signals
 
 - **Recent + frequent delays:** 57.88% default rate
 - **100%+ credit utilization:** 30.00% default rate
-- **0% payment ratio:** 39.81% default rate
+- **0% payment-to-bill proxy:** 39.81% default rate
 
 These indicators are behavioral risk signals and should be used to prioritize further assessment, not as deterministic predictions.
+
+---
+
+## Data Limitations
+
+- The dataset represents a specific population of credit-card clients in Taiwan and a limited historical period, so the findings should not be generalized to every credit portfolio.
+- The analysis identifies **associations** with next-month default and does not establish causality.
+- No predictive model was developed. The project focuses on descriptive analytics, segmentation, feature engineering, and risk indicators.
+- `PaymentRatio` is calculated as `PAY_AMT1 / BILL_AMT1` and is used as a **payment-to-bill proxy**. The dataset documentation does not explicitly map each payment amount to a specific bill statement, so this metric should not be interpreted as the exact percentage of an individual bill that was repaid.
+- Extreme values were reviewed and retained when consistent with the underlying data; they should still be interpreted with caution.
+
+---
+
+## How to Run
+
+### Requirements
+
+- **SQL Server 2022+** because the SQL script uses `GREATEST`
+- Python with:
+  - `pandas`
+  - `numpy`
+  - `pyodbc`
+  - `matplotlib`
+- Microsoft ODBC Driver for SQL Server
+- Power BI Desktop
+
+### Steps
+
+1. Load the source dataset into SQL Server as `dbo.CreditRiskRaw`.
+2. Run [CreditRisk_SQL_Clean.sql](./SQL/CreditRisk_SQL_Clean.sql) to validate the data and create `dbo.vw_CustomerRiskFeatures`.
+3. Open [Credit_Risk_Analysis.ipynb](./Python/Credit_Risk_Analysis.ipynb).
+4. Update the SQL Server connection string in the notebook for your local environment.
+5. Run the notebook cells in order.
+6. Open [Credit Risk PBI.pbix](./PowerBI/Credit%20Risk%20PBI.pbix) in Power BI Desktop and update the SQL Server data-source settings if required.
 
 ---
 
@@ -282,7 +333,7 @@ These indicators are behavioral risk signals and should be used to prioritize fu
 Credit-Risk-Analytics/
 │
 ├── SQL/
-│   └── CreditRisk_SQL.sql
+│   └── CreditRisk_SQL_Clean.sql
 │
 ├── Python/
 │   └── Credit_Risk_Analysis.ipynb
@@ -296,10 +347,6 @@ Credit-Risk-Analytics/
 └── README.md
 ```
 
-## Dashboard Preview
-
-![Credit Risk Dashboard](./images/dashboard_overview.png)
-
 ---
 
 ## Business Interpretation
@@ -311,7 +358,7 @@ Customers showing:
 - recent delays,
 - repeated delays,
 - high credit utilization,
-- and low repayment ratios
+- and low payment intensity
 
 may require closer monitoring or earlier intervention.
 
@@ -325,3 +372,5 @@ The strongest insight from the project is that combining multiple behavioral ind
 
 Data Analyst Portfolio Project  
 SQL Server | Python | Power BI
+
+[LinkedIn](https://www.linkedin.com/in/carlos-castillo-data-analyst) | [GitHub](https://github.com/calimon2612-oss)
